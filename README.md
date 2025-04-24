@@ -32,10 +32,6 @@ pip install -r requirements.txt
 
 ⚠️ **Önemli Not**: Sanal ortam klasörünü (`eye_color_env`) Git'e eklemeyin. Bu klasör zaten `.gitignore` dosyasında belirtilmiştir.
 
-## Kullanım
-
-[Kullanım talimatlarını buraya ekleyin]
-
 ## Proje Yapısı
 
 ```
@@ -53,11 +49,3 @@ eye_color_project/
 - TensorFlow
 - Pillow
 - Matplotlib
-
-## Lisans
-
-[Lisans bilgilerinizi buraya ekleyin]
-
-## Katkıda Bulunma
-
-[Katkıda bulunma kurallarını buraya ekleyin] 
