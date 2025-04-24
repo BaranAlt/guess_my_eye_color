@@ -1,51 +1,51 @@
-# Eye Color Detection Project
+# Göz Rengi Tespit Projesi
 
-This project is designed to detect and analyze eye colors in images using computer vision and machine learning techniques.
+Bu proje, bilgisayarlı görü ve makine öğrenimi tekniklerini kullanarak görüntülerdeki göz renklerini tespit etmek ve analiz etmek için tasarlanmıştır.
 
-## Features
+## Özellikler
 
-- Eye detection in images
-- Color analysis and classification
-- Support for multiple image formats
+- Görüntülerde göz tespiti
+- Renk analizi ve sınıflandırma
+- Birden fazla görüntü formatı desteği
 
-## Installation
+## Kurulum
 
-1. Clone the repository:
+1. Projeyi klonlayın:
 ```bash
 git clone https://github.com/BaranAlt/guess_my_eye_color.git
 cd guess_my_eye_color
 ```
 
-2. Create a virtual environment and activate it:
+2. Sanal ortam oluşturun ve aktifleştirin:
 ```bash
 python -m venv eye_color_env
-# On Windows
+# Windows için
 eye_color_env\Scripts\activate
-# On Unix or MacOS
+# Unix veya MacOS için
 source eye_color_env/bin/activate
 ```
 
-3. Install the required dependencies:
+3. Gerekli bağımlılıkları yükleyin:
 ```bash
 pip install -r requirements.txt
 ```
 
-⚠️ **Important Note**: Do not commit the virtual environment folder (`eye_color_env`). It is already included in `.gitignore`.
+⚠️ **Önemli Not**: Sanal ortam klasörünü (`eye_color_env`) Git'e eklemeyin. Bu klasör zaten `.gitignore` dosyasında belirtilmiştir.
 
-## Usage
+## Kullanım
 
-[Add usage instructions here]
+[Kullanım talimatlarını buraya ekleyin]
 
-## Project Structure
+## Proje Yapısı
 
 ```
 eye_color_project/
-├── src/           # Source code
-├── assets/        # Project assets
-└── samples/       # Sample images
+├── src/           # Kaynak kodlar
+├── assets/        # Proje varlıkları
+└── samples/       # Örnek görüntüler
 ```
 
-## Requirements
+## Gereksinimler
 
 - Python 3.x
 - OpenCV
@@ -54,10 +54,10 @@ eye_color_project/
 - Pillow
 - Matplotlib
 
-## License
+## Lisans
 
-[Add your license information here]
+[Lisans bilgilerinizi buraya ekleyin]
 
-## Contributing
+## Katkıda Bulunma
 
-[Add contribution guidelines if applicable] 
+[Katkıda bulunma kurallarını buraya ekleyin] 
