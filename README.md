@@ -21,6 +21,7 @@ cd guess_my_eye_color
 python -m venv eye_color_env
 # Windows için
 eye_color_env\Scripts\activate
+```
 
 3. Gerekli bağımlılıkları yükleyin:
 ```bash
