@@ -18,64 +18,75 @@ def get_eye_color(eye_image):
     # Görüntüyü HSV'ye dönüştür
     hsv_eye = cv2.cvtColor(eye_image, cv2.COLOR_BGR2HSV)
     
-    # Renk aralıkları
-    color_ranges = {
-    'Mavi': [
-        ([90, 80, 40], [120, 255, 255]),  # Daha dar ve net mavi aralığı
-        ([85, 40, 60], [120, 150, 200])   # Gri-mavi tonlar
-    ],
-    'Yeşil': [
-        ([36, 80, 40], [85, 255, 200]),  # Doygun yeşil
-        ([25, 40, 50], [35, 150, 180])   # Sarımsı yeşil
-    ],
-    'Kahverengi': [
-        ([0, 50, 20], [20, 255, 120]),    # Koyu kahverengi
-        ([5, 60, 30], [25, 200, 150])     # Açık kahverengi
-    ],
-    'Ela': [
-        ([10, 40, 50], [25, 120, 200]),   # Altın-kahve
-        ([25, 40, 50], [40, 120, 200])    # Yeşilimsi ela
-    ],
+    # Renk tanımlamaları
+    colors = {
+        'Mavi': {
+            'range': ((100, 50, 50), (140, 255, 255)),
+            'code': (255, 0, 0)
+        },
+        'Kahverengi': {
+            'range': ((0, 50, 50), (30, 255, 255)),
+            'code': (0, 75, 150)
+        },
+        'Yeşil': {
+            'range': ((40, 50, 50), (80, 255, 255)),
+            'code': (0, 255, 0)
+        },
+        'Diğer': {
+            'range': ((0, 0, 0), (0, 0, 0)),  # Bu aralık kullanılmayacak
+            'code': (128, 128, 128)
+        }
+    }
+    
+    # Göz bölgesi için maske oluştur
+    h, w = eye_image.shape[:2]
+    img_mask = np.zeros((h, w, 1), dtype=np.uint8)
+    
+    # Göz merkezi ve yarıçapı
+    center = (w//2, h//2)
+    radius = min(w, h) // 3  # Göz bölgesi için uygun yarıçap
+    
+    # Maske oluştur
+    cv2.circle(img_mask, center, radius, (255, 255, 255), -1)
+    
+    # Renk dağılımını hesapla
+    eye_class = np.zeros(len(colors), np.float32)
+    
+    def check_color(hsv, color_range):
+        lower, upper = color_range
+        return (hsv[0] >= lower[0] and hsv[0] <= upper[0] and
+                hsv[1] >= lower[1] and hsv[1] <= upper[1] and
+                hsv[2] >= lower[2] and hsv[2] <= upper[2])
+    
+    # Maskeli bölgedeki pikselleri analiz et
+    for y in range(h):
+        for x in range(w):
+            if img_mask[y, x] > 0:
+                hsv = hsv_eye[y, x]
+                color_found = False
+                for i, (color_name, color_info) in enumerate(colors.items()):
+                    if color_name != 'Diğer' and check_color(hsv, color_info['range']):
+                        eye_class[i] += 1
+                        color_found = True
+                        break
+                if not color_found:
+                    eye_class[-1] += 1  # Diğer kategorisine ekle
+    
+    # Renk yüzdelerini hesapla
+    total_vote = eye_class.sum()
+    if total_vote > 0:
+        main_color_index = np.argmax(eye_class[:len(eye_class)-1])
+        color_name = list(colors.keys())[main_color_index]
+        return color_name, 0, colors[color_name]['code']
+    else:
+        return "Belirsiz", 0, colors['Diğer']['code']
 
-}
-    
-    max_ratio = 0
-    eye_color = "Belirsiz"
-    max_color_confidence = {}
-    
-    # Her renk için maske oluştur ve oranını hesapla
-    for color, ranges in color_ranges.items():
-        color_ratio = 0
-        
-        # Her renk için birden fazla aralık olabilir
-        for lower, upper in ranges:
-            lower = np.array(lower)
-            upper = np.array(upper)
-            
-            # Renk maskesi oluştur
-            mask = cv2.inRange(hsv_eye, lower, upper)
-            
-            # Maskeyi temizle
-            kernel = np.ones((3,3), np.uint8)
-            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-            
-            # Bu aralık için oranı hesapla
-            ratio = np.count_nonzero(mask) / mask.size
-            color_ratio += ratio
-        
-        max_color_confidence[color] = color_ratio * 100
-        
-        # Mavi renk için ek ağırlık
-        if color == 'Mavi':
-            color_ratio *= 1.4  # Mavi renk tespitine %40 ek ağırlık
-        
-        # En yüksek orana sahip rengi bul
-        if color_ratio > max_ratio:
-            max_ratio = color_ratio
-            eye_color = color
-    
-    return eye_color, max_ratio * 100
+def draw_dotted_circle(img, center, radius, color, thickness=1, dot_length=5, space_length=5):
+    # Noktalı çember çizimi için yardımcı fonksiyon
+    for angle in range(0, 360, dot_length + space_length):
+        start_angle = angle
+        end_angle = angle + dot_length
+        cv2.ellipse(img, center, (radius, radius), 0, start_angle, end_angle, color, thickness)
 
 def test_camera():
     cap = cv2.VideoCapture(0)
@@ -99,41 +110,48 @@ def test_camera():
             left_eye = keypoints['left_eye']
             right_eye = keypoints['right_eye']
             
-            # Göz bölgelerini belirle
-            eye_size = 20
+            # Gözler arası mesafeyi hesapla
+            eye_distance = np.linalg.norm(np.array(left_eye) - np.array(right_eye))
+            eye_radius = int(eye_distance / 15)  # Dinamik göz yarıçapı
             
             # Sol göz bölgesi
             left_eye_region = frame[
-                left_eye[1]-eye_size:left_eye[1]+eye_size,
-                left_eye[0]-eye_size:left_eye[0]+eye_size
+                left_eye[1]-eye_radius:left_eye[1]+eye_radius,
+                left_eye[0]-eye_radius:left_eye[0]+eye_radius
             ]
             
             # Sağ göz bölgesi
             right_eye_region = frame[
-                right_eye[1]-eye_size:right_eye[1]+eye_size,
-                right_eye[0]-eye_size:right_eye[0]+eye_size
+                right_eye[1]-eye_radius:right_eye[1]+eye_radius,
+                right_eye[0]-eye_radius:right_eye[0]+eye_radius
             ]
             
             # Göz renklerini tespit et
             if left_eye_region.size > 0:
-                left_color, left_conf = get_eye_color(left_eye_region)
-                cv2.putText(frame, f"Sol: {left_color} ({left_conf:.1f}%)",
-                          (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                left_color, _, left_color_code = get_eye_color(left_eye_region)
+                # Arka plan için dikdörtgen çiz
+                text = f"Sol: {left_color}"
+                (text_width, text_height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                cv2.rectangle(frame, (10, 10), (20 + text_width, 30 + text_height), (0, 0, 0), -1)
+                # Metni yaz
+                cv2.putText(frame, text, (15, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                
+                # Noktalı çember çiz
+                draw_dotted_circle(frame, left_eye, eye_radius, left_color_code, 1)
             
             if right_eye_region.size > 0:
-                right_color, right_conf = get_eye_color(right_eye_region)
-                cv2.putText(frame, f"Sağ: {right_color} ({right_conf:.1f}%)",
-                          (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            
-            # Göz bölgelerini çiz
-            cv2.rectangle(frame, 
-                        (left_eye[0]-eye_size, left_eye[1]-eye_size),
-                        (left_eye[0]+eye_size, left_eye[1]+eye_size),
-                        (255, 0, 0), 2)
-            cv2.rectangle(frame,
-                        (right_eye[0]-eye_size, right_eye[1]-eye_size),
-                        (right_eye[0]+eye_size, right_eye[1]+eye_size),
-                        (255, 0, 0), 2)
+                right_color, _, right_color_code = get_eye_color(right_eye_region)
+                # Arka plan için dikdörtgen çiz
+                text = f"Sag: {right_color}"
+                (text_width, text_height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                cv2.rectangle(frame, (frame.shape[1] - 20 - text_width, 10), 
+                            (frame.shape[1] - 10, 30 + text_height), (0, 0, 0), -1)
+                # Metni yaz
+                cv2.putText(frame, text, (frame.shape[1] - 15 - text_width, 25), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                
+                # Noktalı çember çiz
+                draw_dotted_circle(frame, right_eye, eye_radius, right_color_code, 1)
         
         cv2.imshow('Göz Rengi Tespiti', frame)
         
@@ -164,41 +182,48 @@ def process_image(image_path):
         left_eye = keypoints['left_eye']
         right_eye = keypoints['right_eye']
         
-        # Göz bölgelerini belirle
-        eye_size = 20
+        # Gözler arası mesafeyi hesapla
+        eye_distance = np.linalg.norm(np.array(left_eye) - np.array(right_eye))
+        eye_radius = int(eye_distance / 15)  # Dinamik göz yarıçapı
         
         # Sol göz bölgesi
         left_eye_region = frame[
-            left_eye[1]-eye_size:left_eye[1]+eye_size,
-            left_eye[0]-eye_size:left_eye[0]+eye_size
+            left_eye[1]-eye_radius:left_eye[1]+eye_radius,
+            left_eye[0]-eye_radius:left_eye[0]+eye_radius
         ]
         
         # Sağ göz bölgesi
         right_eye_region = frame[
-            right_eye[1]-eye_size:right_eye[1]+eye_size,
-            right_eye[0]-eye_size:right_eye[0]+eye_size
+            right_eye[1]-eye_radius:right_eye[1]+eye_radius,
+            right_eye[0]-eye_radius:right_eye[0]+eye_radius
         ]
         
         # Göz renklerini tespit et
         if left_eye_region.size > 0:
-            left_color, left_conf = get_eye_color(left_eye_region)
-            cv2.putText(frame, f"Sol: {left_color} ({left_conf:.1f}%)",
-                      (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            left_color, _, left_color_code = get_eye_color(left_eye_region)
+            # Arka plan için dikdörtgen çiz
+            text = f"Sol: {left_color}"
+            (text_width, text_height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            cv2.rectangle(frame, (10, 10), (20 + text_width, 30 + text_height), (0, 0, 0), -1)
+            # Metni yaz
+            cv2.putText(frame, text, (15, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            
+            # Noktalı çember çiz
+            draw_dotted_circle(frame, left_eye, eye_radius, left_color_code, 1)
         
         if right_eye_region.size > 0:
-            right_color, right_conf = get_eye_color(right_eye_region)
-            cv2.putText(frame, f"Sağ: {right_color} ({right_conf:.1f}%)",
-                      (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        
-        # Göz bölgelerini çiz
-        cv2.rectangle(frame, 
-                    (left_eye[0]-eye_size, left_eye[1]-eye_size),
-                    (left_eye[0]+eye_size, left_eye[1]+eye_size),
-                    (255, 0, 0), 2)
-        cv2.rectangle(frame,
-                    (right_eye[0]-eye_size, right_eye[1]-eye_size),
-                    (right_eye[0]+eye_size, right_eye[1]+eye_size),
-                    (255, 0, 0), 2)
+            right_color, _, right_color_code = get_eye_color(right_eye_region)
+            # Arka plan için dikdörtgen çiz
+            text = f"Sağ: {right_color}"
+            (text_width, text_height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            cv2.rectangle(frame, (frame.shape[1] - 20 - text_width, 10), 
+                        (frame.shape[1] - 10, 30 + text_height), (0, 0, 0), -1)
+            # Metni yaz
+            cv2.putText(frame, text, (frame.shape[1] - 15 - text_width, 25), 
+                      cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            
+            # Noktalı çember çiz
+            draw_dotted_circle(frame, right_eye, eye_radius, right_color_code, 1)
     
     # Sonuç görüntüsünü göster
     cv2.imshow('Göz Rengi Tespiti', frame)
@@ -216,6 +241,9 @@ def process_video(video_path):
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    
+    # Video hızını artırmak için bekleme süresini azalt
+    wait_time = 1  # Normalde 1ms bekleme
     
     while cap.isOpened():
         ret, frame = cap.read()
@@ -235,41 +263,48 @@ def process_video(video_path):
             left_eye = keypoints['left_eye']
             right_eye = keypoints['right_eye']
             
-            # Göz bölgelerini belirle
-            eye_size = 20
+            # Gözler arası mesafeyi hesapla
+            eye_distance = np.linalg.norm(np.array(left_eye) - np.array(right_eye))
+            eye_radius = int(eye_distance / 15)  # Dinamik göz yarıçapı
             
             # Sol göz bölgesi
             left_eye_region = frame[
-                left_eye[1]-eye_size:left_eye[1]+eye_size,
-                left_eye[0]-eye_size:left_eye[0]+eye_size
+                left_eye[1]-eye_radius:left_eye[1]+eye_radius,
+                left_eye[0]-eye_radius:left_eye[0]+eye_radius
             ]
             
             # Sağ göz bölgesi
             right_eye_region = frame[
-                right_eye[1]-eye_size:right_eye[1]+eye_size,
-                right_eye[0]-eye_size:right_eye[0]+eye_size
+                right_eye[1]-eye_radius:right_eye[1]+eye_radius,
+                right_eye[0]-eye_radius:right_eye[0]+eye_radius
             ]
             
             # Göz renklerini tespit et
             if left_eye_region.size > 0:
-                left_color, left_conf = get_eye_color(left_eye_region)
-                cv2.putText(frame, f"Sol: {left_color} ({left_conf:.1f}%)",
-                          (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                left_color, _, left_color_code = get_eye_color(left_eye_region)
+                # Arka plan için dikdörtgen çiz
+                text = f"Sol: {left_color}"
+                (text_width, text_height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                cv2.rectangle(frame, (10, 10), (20 + text_width, 30 + text_height), (0, 0, 0), -1)
+                # Metni yaz
+                cv2.putText(frame, text, (15, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                
+                # Noktalı çember çiz
+                draw_dotted_circle(frame, left_eye, eye_radius, left_color_code, 1)
             
             if right_eye_region.size > 0:
-                right_color, right_conf = get_eye_color(right_eye_region)
-                cv2.putText(frame, f"Sağ: {right_color} ({right_conf:.1f}%)",
-                          (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            
-            # Göz bölgelerini çiz
-            cv2.rectangle(frame, 
-                        (left_eye[0]-eye_size, left_eye[1]-eye_size),
-                        (left_eye[0]+eye_size, left_eye[1]+eye_size),
-                        (255, 0, 0), 2)
-            cv2.rectangle(frame,
-                        (right_eye[0]-eye_size, right_eye[1]-eye_size),
-                        (right_eye[0]+eye_size, right_eye[1]+eye_size),
-                        (255, 0, 0), 2)
+                right_color, _, right_color_code = get_eye_color(right_eye_region)
+                # Arka plan için dikdörtgen çiz
+                text = f"Sag: {right_color}"
+                (text_width, text_height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                cv2.rectangle(frame, (frame.shape[1] - 20 - text_width, 10), 
+                            (frame.shape[1] - 10, 30 + text_height), (0, 0, 0), -1)
+                # Metni yaz
+                cv2.putText(frame, text, (frame.shape[1] - 15 - text_width, 25), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                
+                # Noktalı çember çiz
+                draw_dotted_circle(frame, right_eye, eye_radius, right_color_code, 1)
         
         # İşlenmiş kareyi kaydet
         out.write(frame)
@@ -277,7 +312,8 @@ def process_video(video_path):
         # Görüntüyü göster
         cv2.imshow('Göz Rengi Tespiti', frame)
         
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        # Bekleme süresini azaltarak video hızını artır
+        if cv2.waitKey(wait_time) & 0xFF == ord('q'):
             break
     
     cap.release()
